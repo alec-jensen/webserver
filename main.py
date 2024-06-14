@@ -49,7 +49,7 @@ class Webserver:
     def __init__(self, host, port):
         self.host = host
         self.port = port
-        self.timeout = 1200 # in ms
+        self.timeout = 1.2 # seconds
         self.route_tree: RouteTree = RouteTree()
 
     def _send(self, writer, responsecode: ResponseCodes, response: str):
@@ -73,7 +73,13 @@ HTTP/1.1 {responsecode}
     async def _recv(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         client_address = writer.get_extra_info("peername")
         MAX_REQUEST_SIZE = 1024 * 1024 * 30  # 30 MB
-        _request = (await reader.read(MAX_REQUEST_SIZE)).decode()
+        try:
+            async with asyncio.timeout(self.timeout):
+                _request = (await reader.read(MAX_REQUEST_SIZE)).decode()
+        except asyncio.TimeoutError:
+            logging.error(f"Timed out receiving request from {client_address}")
+            self._send(writer, ResponseCodes.REQUEST_TIMEOUT, "Request Timeout")
+            return
 
         try:
             request = Request.from_string(_request, client_address)
@@ -110,8 +116,7 @@ HTTP/1.1 {responsecode}
             request_response_code = ResponseCodes.NOT_FOUND
             self._send(writer, ResponseCodes.NOT_FOUND, "Not Found")
 
-        logging.info(f"{request.client_address[0]} [{datetime.datetime.now()}] \
-                     {request.method.value} {request.path} {request_response_code.value}")
+        logging.info(f"{request.client_address[0]} [{datetime.datetime.now()}] {request.method.value} {request.path} {request_response_code.value}")
 
     def _register_route(self, path: str, method: Methods, handler: AsyncFunction):
         if self.route_tree.get_route(path, method):
@@ -183,10 +188,5 @@ if __name__ == "__main__":
     @server.post("/echo")
     async def echo(request: Request):
         return request.body
-    
-    @server.get("/sleep")
-    async def sleep():
-        await asyncio.sleep(10)
-        return "Done sleeping"
 
     server.start()
