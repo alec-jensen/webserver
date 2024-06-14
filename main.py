@@ -49,7 +49,7 @@ class Webserver:
     def __init__(self, host, port):
         self.host = host
         self.port = port
-        self.timeout = 1200
+        self.timeout = 1200 # in ms
         self.route_tree: RouteTree = RouteTree()
 
     def _send(self, writer, responsecode: ResponseCodes, response: str):
@@ -65,25 +65,24 @@ HTTP/1.1 {responsecode}
         asyncio.run(self._run())
 
     async def _run(self):
-        server = await asyncio.start_server(self._loop, self.host, self.port)
+        server = await asyncio.start_server(self._recv, self.host, self.port)
         logging.info(f"Server started on {self.host}:{self.port}")
         async with server:
             await server.serve_forever()
 
-    async def _loop(self, reader, writer):
+    async def _recv(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         client_address = writer.get_extra_info("peername")
         MAX_REQUEST_SIZE = 1024 * 1024 * 30  # 30 MB
         _request = (await reader.read(MAX_REQUEST_SIZE)).decode()
 
         try:
             request = Request.from_string(_request, client_address)
-        except Exception as e:
+        except Exception:
             logging.warning(f"Bad request from {client_address}")
-            logging.debug(f"Error parsing request:\n{
-                          traceback.format_exc().strip()}")
+            logging.debug(f"Error parsing request:\n{traceback.format_exc().strip()}")
             try:
                 self._send(writer, ResponseCodes.BAD_REQUEST, "Bad Request")
-            except Exception as e:
+            except Exception:
                 logging.info(f"Error sending response:\n{traceback.format_exc().strip()}")
             return
 
@@ -184,5 +183,10 @@ if __name__ == "__main__":
     @server.post("/echo")
     async def echo(request: Request):
         return request.body
+    
+    @server.get("/sleep")
+    async def sleep():
+        await asyncio.sleep(10)
+        return "Done sleeping"
 
     server.start()
