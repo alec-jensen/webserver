@@ -7,7 +7,7 @@ import os
 
 from routes import RouteTree
 from enums import Methods, ResponseCodes, Response, HTMLResponse, HTTPErrors
-from typedefs import AsyncFunction
+from typedefs import AsyncFunction, AsyncFunction
 from log_formatter import LogFormatter, LogFileFormatter
 from pyhtml import html, head, title, body, h1, p, a, link, div
 
