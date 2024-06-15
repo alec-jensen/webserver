@@ -1,8 +1,8 @@
 import inspect
 import logging
 
-from enums import Methods
-from typedefs import AsyncFunction
+from webserver.enums import Methods
+from webserver.typedefs import AsyncFunction
 
 def _split_path(path: str):
     new_path = path.split("/")
