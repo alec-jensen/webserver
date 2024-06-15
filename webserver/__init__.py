@@ -1,3 +1,3 @@
-from main import *
-from enums import *
-from pyhtml import *
+from webserver.webserver import *
+from webserver.enums import *
+from webserver.pyhtml import *

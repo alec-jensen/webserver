@@ -31,11 +31,19 @@ class Request:
     headers: dict
     body: str
     client_address: tuple
+    query_params: dict | None = None
 
     @classmethod
     def from_string(cls, request: str, client_address: tuple):
         lines = request.split("\r\n")
         method, path, _ = lines[0].split(" ")
+        query_params = None
+        if "?" in path:
+            path, query_string = path.split("?")
+            query_params = {}
+            for param in query_string.split("&"):
+                key, value = param.split("=")
+                query_params[key] = value
         headers = {}
         for line in lines[1:]:
             if not line:
@@ -43,7 +51,7 @@ class Request:
             key, value = line.split(": ")
             headers[key] = value
         body = lines[-1]
-        return cls(Methods[method], path, headers, body, client_address)
+        return cls(Methods[method], path, headers, body, client_address, query_params)
 
 
 class Webserver:
@@ -115,6 +123,16 @@ class Webserver:
             for arg in route.handler_args:
                 if arg == "request":
                     handler_args.append(request)
+                else:
+                    if request.query_params is not None:
+                        if arg in request.query_params.keys():
+                            value = request.query_params[arg]
+                            param_type = route.handler_signature.parameters[arg].annotation
+                            try:
+                                handler_args.append(param_type(value))
+                            except ValueError:
+                                self._send(writer, HTTPErrors.BAD_REQUEST)
+                                return
 
             try:
                 response = await route.handler(*handler_args) # type: ignore (im guessing a pylance bug)

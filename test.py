@@ -24,12 +24,11 @@ async def index():
     )
 
 @server.get("/myip")
-async def myip(request: Request):
+async def myip(request: Request, format: str):
+    if format == "plain":
+        return request.client_address[0]
+    
     return f"Your IP is: {request.client_address[0]}"
-
-@server.get("/myip/raw")
-async def myip_raw(request: Request):
-    return request.client_address[0]
 
 @server.post("/echo")
 async def echo(request: Request):

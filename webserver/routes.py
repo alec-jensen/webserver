@@ -17,6 +17,7 @@ class RouteNode:
         self.method = method
         self.handler = handler
         self.handler_args = inspect.getfullargspec(handler).args
+        self.handler_signature = inspect.signature(handler)
         self.children = []
 
         logging.debug(f"Registered route {self.method} {self.path} -> {self.handler} with args {self.handler_args}")
