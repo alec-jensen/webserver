@@ -3,11 +3,13 @@ import logging
 import datetime
 import traceback
 import asyncio
+import os
 
-from routes import RouteTree, RouteNode
-from enums import Methods, ResponseCodes
+from routes import RouteTree
+from enums import Methods, ResponseCodes, Response, HTMLResponse, HTTPErrors
 from typedefs import AsyncFunction
 from log_formatter import LogFormatter, LogFileFormatter
+from pyhtml import html, head, title, body, h1, p, a, link, div
 
 logFormatter = LogFormatter()
 logger = logging.getLogger()
@@ -51,17 +53,16 @@ class Webserver:
         self.port = port
         self.timeout = 1.2 # seconds
         self.route_tree: RouteTree = RouteTree()
+        self.static_files_dir: str | None = None
 
-    def _send(self, writer, responsecode: ResponseCodes, response: str):
-        http_response = f"""\
-HTTP/1.1 {responsecode}
-
-{response}
-"""
-        writer.write(http_response.encode())
+    def _send(self, writer, response: Response):
+        writer.write(response.to_string().encode())
         writer.close()
 
     def start(self):
+        if self.static_files_dir is not None:
+            self.static_files_dir = os.path.abspath(self.static_files_dir)
+
         asyncio.run(self._run())
 
     async def _run(self):
@@ -78,7 +79,7 @@ HTTP/1.1 {responsecode}
                 _request = (await reader.read(MAX_REQUEST_SIZE)).decode()
         except asyncio.TimeoutError:
             logging.error(f"Timed out receiving request from {client_address}")
-            self._send(writer, ResponseCodes.REQUEST_TIMEOUT, "Request Timeout")
+            self._send(writer, HTTPErrors.REQUEST_TIMEOUT)
             return
 
         try:
@@ -87,7 +88,7 @@ HTTP/1.1 {responsecode}
             logging.warning(f"Bad request from {client_address}")
             logging.debug(f"Error parsing request:\n{traceback.format_exc().strip()}")
             try:
-                self._send(writer, ResponseCodes.BAD_REQUEST, "Bad Request")
+                self._send(writer, HTTPErrors.BAD_REQUEST)
             except Exception:
                 logging.info(f"Error sending response:\n{traceback.format_exc().strip()}")
             return
@@ -95,8 +96,22 @@ HTTP/1.1 {responsecode}
         request_response_code = ResponseCodes.OK
 
         route = self.route_tree.get_route(request.path, request.method)
+        if route is None and self.static_files_dir:
+            file_path = os.path.join(self.static_files_dir, request.path[1:])
+            file_path = os.path.abspath(file_path)
+            logging.debug(f"Checking for static file {file_path}")
+            logging.debug(f"Static files dir: {self.static_files_dir}")
+            
+            if not os.path.commonprefix([self.static_files_dir, file_path]) == self.static_files_dir:
+                self._send(writer, HTTPErrors.FORBIDDEN)
+                return
+            
+            if os.path.exists(file_path):
+                # deepcode ignore PT: the code above prevents path traversal
+                with open(file_path, "r") as file:
+                    self._send(writer, Response(file.read()))
+                return
         if route is not None:
-            logging.debug(f"Found route {route}")
             handler_args = []
             for arg in route.handler_args:
                 if arg == "request":
@@ -105,16 +120,18 @@ HTTP/1.1 {responsecode}
             try:
                 response = await route.handler(*handler_args) # type: ignore (im guessing a pylance bug)
                 request_response_code = ResponseCodes.OK
-                self._send(writer, ResponseCodes.OK, response)
+                if issubclass(type(response), Response):
+                    self._send(writer, response)
+                else:
+                    self._send(writer, Response(response))
+                
             except Exception as e:
                 logging.error(f"Error handling request:\n{traceback.format_exc().strip()}")
                 request_response_code = ResponseCodes.INTERNAL_SERVER_ERROR
-                self._send(writer,
-                            ResponseCodes.INTERNAL_SERVER_ERROR,
-                            "Internal Server Error")
+                self._send(writer, HTTPErrors.INTERNAL_SERVER_ERROR)
         else:
             request_response_code = ResponseCodes.NOT_FOUND
-            self._send(writer, ResponseCodes.NOT_FOUND, "Not Found")
+            self._send(writer, HTTPErrors.NOT_FOUND)
 
         logging.info(f"{request.client_address[0]} [{datetime.datetime.now()}] {request.method.value} {request.path} {request_response_code.value}")
 
@@ -172,10 +189,27 @@ HTTP/1.1 {responsecode}
 
 if __name__ == "__main__":
     server = Webserver("0.0.0.0", 8080)
+    server.static_files_dir = "static"
 
     @server.get("/")
     async def index():
-        return "Hello, World!"
+        return HTMLResponse(
+            html(
+                head(
+                    title("Index"),
+                    link(attr={"rel": "stylesheet", "href": "/style.css"})
+                ),
+                body(
+                    h1("Index"),
+                    p("This is the index page"),
+                    div(
+                        a("GitHub repo", attr={"href": "https://github.com/alec-jensen/webserver", "target": "_blank"}),
+                        a("What's My IP?", attr={"href": "/myip"}),
+                        attr={"id": "links"}
+                    )
+                )
+            )
+        )
 
     @server.get("/myip")
     async def myip(request: Request):

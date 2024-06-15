@@ -1,5 +1,6 @@
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
 
 class Methods(Enum):
     GET = "GET"
@@ -90,3 +91,62 @@ class ResponseCodes(Enum):
     NOT_EXTENDED = ResponseCode(510, "Not Extended")
     NETWORK_AUTHENTICATION_REQUIRED = ResponseCode(
         511, "Network Authentication Required")
+
+
+@dataclass
+class Response:
+    body: str
+    headers: dict = field(default_factory=dict)
+    status: ResponseCodes = ResponseCodes.OK
+
+    def to_string(self):
+        headers = "\r\n".join([f"{key}: {value}" for key, value in self.headers.items()])
+        return f"HTTP/1.1 {self.status.value}\r\n{headers}\r\n\r\n{self.body}"
+
+
+class HTMLResponse(Response):
+    def __init__(self, body: str, headers: dict = {}, status: ResponseCodes = ResponseCodes.OK):
+        super().__init__(body, headers, status)
+        self.headers["Content-Type"] = "text/html"
+
+class HTTPErrors:
+    BAD_REQUEST = Response("Bad Request", {}, ResponseCodes.BAD_REQUEST)
+    UNAUTHORIZED = Response("Unauthorized", {}, ResponseCodes.UNAUTHORIZED)
+    PAYMENT_REQUIRED = Response("Payment Required", {}, ResponseCodes.PAYMENT_REQUIRED)
+    FORBIDDEN = Response("Forbidden", {}, ResponseCodes.FORBIDDEN)
+    NOT_FOUND = Response("Not Found", {}, ResponseCodes.NOT_FOUND)
+    METHOD_NOT_ALLOWED = Response("Method Not Allowed", {}, ResponseCodes.METHOD_NOT_ALLOWED)
+    NOT_ACCEPTABLE = Response("Not Acceptable", {}, ResponseCodes.NOT_ACCEPTABLE)
+    PROXY_AUTHENTICATION_REQUIRED = Response("Proxy Authentication Required", {}, ResponseCodes.PROXY_AUTHENTICATION_REQUIRED)
+    REQUEST_TIMEOUT = Response("Request Timeout", {}, ResponseCodes.REQUEST_TIMEOUT)
+    CONFLICT = Response("Conflict", {}, ResponseCodes.CONFLICT)
+    GONE = Response("Gone", {}, ResponseCodes.GONE)
+    LENGTH_REQUIRED = Response("Length Required", {}, ResponseCodes.LENGTH_REQUIRED)
+    PRECONDITION_FAILED = Response("Precondition Failed", {}, ResponseCodes.PRECONDITION_FAILED)
+    PAYLOAD_TOO_LARGE = Response("Payload Too Large", {}, ResponseCodes.PAYLOAD_TOO_LARGE)
+    URI_TOO_LONG = Response("URI Too Long", {}, ResponseCodes.URI_TOO_LONG)
+    UNSUPPORTED_MEDIA_TYPE = Response("Unsupported Media Type", {}, ResponseCodes.UNSUPPORTED_MEDIA_TYPE)
+    RANGE_NOT_SATISFIABLE = Response("Range Not Satisfiable", {}, ResponseCodes.RANGE_NOT_SATISFIABLE)
+    EXPECTATION_FAILED = Response("Expectation Failed", {}, ResponseCodes.EXPECTATION_FAILED)
+    IM_A_TEAPOT = Response("I'm a teapot", {}, ResponseCodes.IM_A_TEAPOT)
+    MISDIRECTED_REQUEST = Response("Misdirected Request", {}, ResponseCodes.MISDIRECTED_REQUEST)
+    UNPROCESSABLE_ENTITY = Response("Unprocessable Entity", {}, ResponseCodes.UNPROCESSABLE_ENTITY)
+    LOCKED = Response("Locked", {}, ResponseCodes.LOCKED)
+    FAILED_DEPENDENCY = Response("Failed Dependency", {}, ResponseCodes.FAILED_DEPENDENCY)
+    TOO_EARLY = Response("Too Early", {}, ResponseCodes.TOO_EARLY)
+    UPGRADE_REQUIRED = Response("Upgrade Required", {}, ResponseCodes.UPGRADE_REQUIRED)
+    PRECONDITION_REQUIRED = Response("Precondition Required", {}, ResponseCodes.PRECONDITION_REQUIRED)
+    TOO_MANY_REQUESTS = Response("Too Many Requests", {}, ResponseCodes.TOO_MANY_REQUESTS)
+    REQUEST_HEADER_FIELDS_TOO_LARGE = Response("Request Header Fields Too Large", {}, ResponseCodes.REQUEST_HEADER_FIELDS_TOO_LARGE)
+    UNAVAILABLE_FOR_LEGAL_REASONS = Response("Unavailable For Legal Reasons", {}, ResponseCodes.UNAVAILABLE_FOR_LEGAL_REASONS)
+    INTERNAL_SERVER_ERROR = Response("Internal Server Error", {}, ResponseCodes.INTERNAL_SERVER_ERROR)
+    NOT_IMPLEMENTED = Response("Not Implemented", {}, ResponseCodes.NOT_IMPLEMENTED)
+    BAD_GATEWAY = Response("Bad Gateway", {}, ResponseCodes.BAD_GATEWAY)
+    SERVICE_UNAVAILABLE = Response("Service Unavailable", {}, ResponseCodes.SERVICE_UNAVAILABLE)
+    GATEWAY_TIMEOUT = Response("Gateway Timeout", {}, ResponseCodes.GATEWAY_TIMEOUT)
+    HTTP_VERSION_NOT_SUPPORTED = Response("HTTP Version Not Supported", {}, ResponseCodes.HTTP_VERSION_NOT_SUPPORTED)
+    VARIANT_ALSO_NEGOTIATES = Response("Variant Also Negotiates", {}, ResponseCodes.VARIANT_ALSO_NEGOTIATES)
+    INSUFFICIENT_STORAGE = Response("Insufficient Storage", {}, ResponseCodes.INSUFFICIENT_STORAGE)
+    LOOP_DETECTED = Response("Loop Detected", {}, ResponseCodes.LOOP_DETECTED)
+    NOT_EXTENDED = Response("Not Extended", {}, ResponseCodes.NOT_EXTENDED)
+    NETWORK_AUTHENTICATION_REQUIRED = Response("Network Authentication Required", {}, ResponseCodes.NETWORK_AUTHENTICATION_REQUIRED)
