@@ -1,4 +1,4 @@
-I was bored so I wrote a webserver in python.
+I was bored so I wrote a webserver in python, using no external libraries.
 
 ```python
 from webserver import Webserver, Request, HTMLResponse, html, head, title, link, body, h1, p, div, a
@@ -33,9 +33,15 @@ async def index():
         )
     )
 
-# To get the Request object, add it as an argument
+# This route shows 2 different things
+# - Add the request parameter with the type Request to get the request object
+# - Add any other parameters to get the URL query parameters, which are 
+#   automatically validated and converted to the correct type
 @server.get("/myip")
-async def myip(request: Request):
+async def myip(request: Request, format: str):
+    if format == "plain":
+        return request.client_address[0]
+    
     return f"Your IP is: {request.client_address[0]}"
 
 # All types of requests are supported

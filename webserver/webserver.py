@@ -121,7 +121,7 @@ class Webserver:
         if route is not None:
             handler_args = []
             for arg in route.handler_args:
-                if arg == "request":
+                if arg == "request" and route.handler_signature.parameters[arg].annotation == Request:
                     handler_args.append(request)
                 else:
                     if request.query_params is not None:
