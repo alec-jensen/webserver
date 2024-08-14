@@ -145,6 +145,7 @@ class Webserver:
                 response = await route.handler(*handler_args) # type: ignore (im guessing a pylance bug)
                 request_response_code = ResponseCodes.OK
                 if issubclass(type(response), Response):
+                    request_response_code = response.status
                     self._send(writer, response)
                 else:
                     self._send(writer, Response(response))
