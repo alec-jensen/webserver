@@ -25,6 +25,8 @@ class RouteNode:
             if part.startswith("{") and part.endswith("}"):
                 self.path_vars.append({"name": part[1:-1], "pos": split_path(path).index(part)})
 
+        logging.debug(f"Found path variables {self.path_vars} in route {self.method} {self.path}")
+
         logging.debug(f"Registered route {self.method} {self.path} -> {self.handler} with args {self.handler_args}")
 
     def add_child(self, child):

@@ -124,12 +124,13 @@ class Webserver:
                 path_vars.append(var["name"])
             handler_args = []
             for arg in route.handler_args:
-                if arg == "request" and route.handler_signature.parameters[arg].annotation == Request:
+                if arg == "request" or route.handler_signature.parameters[arg].annotation == Request:
                     handler_args.append(request)
                 elif arg in path_vars:
                     value = split_path(request.path)[var["pos"]]
                     param_type = route.handler_signature.parameters[arg].annotation
                     handler_args.append(param_type(value))
+                    logging.debug(f"Found path variable {arg} with value {value}")
                 else:
                     if request.query_params is not None:
                         if arg in request.query_params.keys():
