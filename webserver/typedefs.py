@@ -1,5 +1,4 @@
-from typing import Awaitable, Callable, TypeVar, Union
-from typing_extensions import ParamSpec
+from typing import Awaitable, Callable, TypeVar, Union, ParamSpec
 
 T = TypeVar("T")
 P = ParamSpec("P")
