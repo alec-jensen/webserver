@@ -5,7 +5,7 @@ import traceback
 import asyncio
 import os
 
-from webserver.routes import RouteTree
+from webserver.routes import RouteTree, split_path
 from webserver.enums import Methods, ResponseCodes, Response, HTTPErrors
 from webserver.typedefs import AsyncFunction, AsyncFunction
 from webserver.log_formatter import LogFormatter, LogFileFormatter
@@ -119,10 +119,17 @@ class Webserver:
                     self._send(writer, Response(file.read()))
                 return
         if route is not None:
+            path_vars = []
+            for var in route.path_vars:
+                path_vars.append(var["name"])
             handler_args = []
             for arg in route.handler_args:
                 if arg == "request" and route.handler_signature.parameters[arg].annotation == Request:
                     handler_args.append(request)
+                elif arg in path_vars:
+                    value = split_path(request.path)[var["pos"]]
+                    param_type = route.handler_signature.parameters[arg].annotation
+                    handler_args.append(param_type(value))
                 else:
                     if request.query_params is not None:
                         if arg in request.query_params.keys():

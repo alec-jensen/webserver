@@ -4,7 +4,7 @@ import logging
 from webserver.enums import Methods
 from webserver.typedefs import AsyncFunction
 
-def _split_path(path: str):
+def split_path(path: str):
     new_path = path.split("/")
     for p in new_path:
         if p == "":
@@ -19,13 +19,18 @@ class RouteNode:
         self.handler_args = inspect.getfullargspec(handler).args
         self.handler_signature = inspect.signature(handler)
         self.children = []
+        self.path_vars: list[dict] = []
+
+        for part in split_path(path):
+            if part.startswith("{") and part.endswith("}"):
+                self.path_vars.append({"name": part[1:-1], "pos": split_path(path).index(part)})
 
         logging.debug(f"Registered route {self.method} {self.path} -> {self.handler} with args {self.handler_args}")
 
     def add_child(self, child):
         for c in self.children:
-            c_path = _split_path(c.path)
-            child_path = _split_path(child.path)
+            c_path = split_path(c.path)
+            child_path = split_path(child.path)
             if c_path[0] == child_path[0]:
                 logging.debug(f"Adding child {child} to existing child {c}")
                 c.add_child(child)
@@ -36,8 +41,8 @@ class RouteNode:
 
     def get_child(self, path: str, method: Methods):
         for child in self.children:
-            child_path = _split_path(child.path)
-            path_parts = _split_path(path)
+            child_path = split_path(child.path)
+            path_parts = split_path(path)
             if child_path == path_parts and child.method == method:
                 return child
             elif child_path[0] == path_parts[0]:
@@ -56,8 +61,8 @@ class RouteTree:
 
     def add_route(self, path: str, method: Methods, handler: AsyncFunction):
         for root in self.roots:
-            root_path = _split_path(root.path)
-            path_parts = _split_path(path)
+            root_path = split_path(root.path)
+            path_parts = split_path(path)
             if root_path[0] == path_parts[0]:
                 logging.debug(f"Adding route {method.value} {path} to existing root {root}")
                 root.add_child(RouteNode(path, method, handler))
@@ -68,12 +73,19 @@ class RouteTree:
 
     def get_route(self, path: str, method: Methods)-> RouteNode | None:
         for root in self.roots:
-            root_path = _split_path(root.path)
-            path_parts = _split_path(path)
+            root_path = split_path(root.path)
+            path_parts = split_path(path)
             if root_path == path_parts and root.method == method:
                 return root
             elif root_path[0] == path_parts[0]:
                 return root.get_child(path, method)
+            
+            # Check path variables
+            for var in root.path_vars:
+                if var["pos"] < len(path_parts):
+                    root_path[var["pos"]] = path_parts[var["pos"]]
+                    if root_path == path_parts and root.method == method:
+                        return root
         return None
 
     def __str__(self):
