@@ -129,7 +129,11 @@ class Webserver:
                 elif arg in path_vars:
                     value = split_path(request.path)[var["pos"]]
                     param_type = route.handler_signature.parameters[arg].annotation
-                    handler_args.append(param_type(value))
+                    try:
+                        handler_args.append(param_type(value))
+                    except ValueError:
+                        self._send(writer, HTTPErrors.BAD_REQUEST)
+                        return
                     logging.debug(f"Found path variable {arg} with value {value}")
                 else:
                     if request.query_params is not None:
@@ -143,7 +147,12 @@ class Webserver:
                                 return
 
             try:
-                response = await route.handler(*handler_args) # type: ignore (im guessing a pylance bug)
+                if type(route.handler) == AsyncFunction:
+                    response = await route.handler(*handler_args) # type: ignore
+                elif callable(route.handler):
+                    response = route.handler(*handler_args) # type: ignore
+                else:
+                    raise ValueError("Handler is not a function")
                 request_response_code = ResponseCodes.OK
                 if issubclass(type(response), Response):
                     request_response_code = response.status

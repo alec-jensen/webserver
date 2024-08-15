@@ -1,11 +1,9 @@
-from webserver import Webserver
+from webserver import Webserver, Request
 
 server = Webserver("0.0.0.0", 8080)
 
-# Variables can be added to the path
-@server.get("/{name}/greet")
-async def hello(request, name: str):
-    return f"Hello, {name}!"
+@server.get("/{test}/fetch_one")
+def fetch_one(request: Request, test: str):
+    return request.body
 
-# Once this is called, the server will start listening for requests
 server.start()
