@@ -89,11 +89,9 @@ class RouteTree:
         self.roots.append(RouteNode(path, method, handler))
 
     def get_route(self, path: str, method: Methods)-> RouteNode | None:
-        print(self.roots)
         for root in self.roots:
             root_path = split_path(root.path)
             path_parts = split_path(path)
-            print(root_path, path_parts)
             if root_path == path_parts and root.method == method:
                 return root
             elif root_path[0] == path_parts[0]:
@@ -101,12 +99,9 @@ class RouteTree:
             
             # Check path variables
             for var in root.path_vars:
-                print(var)
                 if var["pos"] < len(path_parts):
-                    print(root_path, path_parts)
                     root_path[var["pos"]] = path_parts[var["pos"]]
                     if root_path == path_parts and root.method == method:
-                        print("Found path variable route")
                         return root
         return None
 
