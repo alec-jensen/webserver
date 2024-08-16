@@ -147,12 +147,13 @@ class Webserver:
                                 return
 
             try:
-                if type(route.handler) == AsyncFunction:
-                    response = await route.handler(*handler_args) # type: ignore
-                elif callable(route.handler):
-                    response = route.handler(*handler_args) # type: ignore
+                if callable(route.handler):
+                    response = await route.handler(*handler_args)
                 else:
-                    raise ValueError("Handler is not a function")
+                    try:
+                        response = await route.handler(*handler_args)
+                    except TypeError:
+                        raise ValueError(f"Handler for route {request.method.value} {request.path} is not a function")
                 request_response_code = ResponseCodes.OK
                 if issubclass(type(response), Response):
                     request_response_code = response.status
