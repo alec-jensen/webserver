@@ -11,6 +11,8 @@ def split_path(path: str):
             new_path.remove(p)
     return new_path
 
+# TODO: PathVarNode class for better/more efficient path variable handling
+
 class RouteNode:
     def __init__(self, path: str, method: Methods, handler: AsyncFunction | None = None):
         self.path = path
@@ -65,6 +67,19 @@ class RouteTree:
         for root in self.roots:
             root_path = split_path(root.path)
             path_parts = split_path(path)
+            if root_path == path_parts and root.method == method:
+                raise ValueError(f"Route {method.value} {path} already exists")
+            
+            # make sure route variables create a new root
+            path_vars = []
+            for part in path_parts:
+                if part.startswith("{") and part.endswith("}"):
+                    path_vars.append(part)
+            if path_vars:
+                logging.debug(f"Adding route {method.value} {path} with path variables {path_vars} to new root")
+                self.roots.append(RouteNode(path, method, handler))
+                return
+        
             if root_path[0] == path_parts[0]:
                 logging.debug(f"Adding route {method.value} {path} to existing root {root}")
                 root.add_child(RouteNode(path, method, handler))
@@ -74,9 +89,11 @@ class RouteTree:
         self.roots.append(RouteNode(path, method, handler))
 
     def get_route(self, path: str, method: Methods)-> RouteNode | None:
+        print(self.roots)
         for root in self.roots:
             root_path = split_path(root.path)
             path_parts = split_path(path)
+            print(root_path, path_parts)
             if root_path == path_parts and root.method == method:
                 return root
             elif root_path[0] == path_parts[0]:
@@ -84,9 +101,12 @@ class RouteTree:
             
             # Check path variables
             for var in root.path_vars:
+                print(var)
                 if var["pos"] < len(path_parts):
+                    print(root_path, path_parts)
                     root_path[var["pos"]] = path_parts[var["pos"]]
                     if root_path == path_parts and root.method == method:
+                        print("Found path variable route")
                         return root
         return None
 

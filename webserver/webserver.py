@@ -73,10 +73,12 @@ class Webserver:
         asyncio.run(self._run())
 
     async def _run(self):
-        server = await asyncio.start_server(self._recv, self.host, self.port)
+        self.server = await asyncio.start_server(self._recv, self.host, self.port)
         logging.info(f"Server started on {self.host}:{self.port}")
-        async with server:
-            await server.serve_forever()
+        async with self.server:
+            await self.server.serve_forever()
+
+        self.server.close()
 
     async def _recv(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         client_address = writer.get_extra_info("peername")
