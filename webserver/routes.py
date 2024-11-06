@@ -1,7 +1,7 @@
 import inspect
 import logging
 
-from webserver.enums import Methods
+from webserver.enums import HTTPMethods
 from webserver.typedefs import AsyncFunction
 
 def split_path(path: str):
@@ -14,12 +14,13 @@ def split_path(path: str):
 # TODO: PathVarNode class for better/more efficient path variable handling
 
 class RouteNode:
-    def __init__(self, path: str, method: Methods, handler: AsyncFunction | None = None):
+    def __init__(self, path: str, method: HTTPMethods, handler: AsyncFunction | None = None):
         self.path = path
         self.method = method
         self.handler = handler
-        self.handler_args = inspect.getfullargspec(handler).args
-        self.handler_signature = inspect.signature(handler)
+        if handler is not None:
+            self.handler_args = inspect.getfullargspec(handler).args
+            self.handler_signature = inspect.signature(handler)
         self.children = []
         self.path_vars: list[dict] = []
 
@@ -43,7 +44,7 @@ class RouteNode:
         logging.debug(f"Adding child {child} to {self}")
         self.children.append(child)
 
-    def get_child(self, path: str, method: Methods):
+    def get_child(self, path: str, method: HTTPMethods):
         for child in self.children:
             child_path = split_path(child.path)
             path_parts = split_path(path)
@@ -63,7 +64,7 @@ class RouteTree:
     def __init__(self):
         self.roots: list[RouteNode] = []
 
-    def add_route(self, path: str, method: Methods, handler: AsyncFunction):
+    def add_route(self, path: str, method: HTTPMethods, handler: AsyncFunction):
         for root in self.roots:
             root_path = split_path(root.path)
             path_parts = split_path(path)
@@ -88,7 +89,7 @@ class RouteTree:
         logging.debug(f"Adding route {method.value} {path} to new root")
         self.roots.append(RouteNode(path, method, handler))
 
-    def get_route(self, path: str, method: Methods)-> RouteNode | None:
+    def get_route(self, path: str, method: HTTPMethods)-> RouteNode | None:
         for root in self.roots:
             root_path = split_path(root.path)
             path_parts = split_path(path)

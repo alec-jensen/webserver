@@ -2,7 +2,7 @@ from enum import Enum
 from dataclasses import dataclass, field
 
 
-class Methods(Enum):
+class HTTPMethods(Enum):
     GET = "GET"
     HEAD = "HEAD"
     POST = "POST"
@@ -23,7 +23,14 @@ class ResponseCode:
         return f"{self.code} {self.message}"
 
 
-class ResponseCodes(Enum):
+class HTTPVerions(Enum):
+    HTTP_1_0 = "HTTP/1.0"
+    HTTP_1_1 = "HTTP/1.1"
+    HTTP_2 = "HTTP/2"
+    HTTP_3 = "HTTP/3"
+
+
+class HTTPResponseCodes(Enum):
     CONTINUE = ResponseCode(100, "Continue")
     SWITCHING_PROTOCOLS = ResponseCode(101, "Switching Protocols")
     PROCESSING = ResponseCode(102, "Processing")
@@ -94,59 +101,131 @@ class ResponseCodes(Enum):
 
 
 @dataclass
-class Response:
+class HTTPRequest:
+    http_version: HTTPVerions
+    method: HTTPMethods
+    path: str
+    headers: dict
+    cookies: dict
     body: str
+    client_address: tuple
+    query_params: dict | None = None
+
+    @classmethod
+    def from_string(cls, request: str, client_address: tuple):
+        lines = request.split("\r\n")
+        method, path, http_version = lines[0].split(" ")
+        query_params = None
+        if "?" in path:
+            path, query_string = path.split("?")
+            query_params = {}
+            for param in query_string.split("&"):
+                key, value = param.split("=")
+                query_params[key] = value
+        headers = {}
+        cookies = {}
+        for line in lines[1:]:
+            if not line:
+                break
+            key, value = line.split(": ")
+            headers[key] = value
+            if key == "Cookie":
+                for cookie in value.split("; "):
+                    key, value = cookie.split("=")
+                    cookies[key] = value
+        
+        body = lines[-1]
+
+        # Content-Length should match body length
+        if headers.get("Content-Length") is not None:
+            content_length = int(headers["Content-Length"])
+            if len(body) != content_length:
+                raise ValueError("Content-Length does not match body length")
+        
+        # Check for forwarded headers
+        if headers.get("X-Forwarded-For") is not None:
+            client_address = (headers["X-Forwarded-For"], client_address[1])
+        if headers.get("X-Forwarded-Port") is not None:
+            client_address = (client_address[0], int(headers["X-Forwarded-Port"]))
+        if headers.get("X-Forwarded-Proto") is not None:
+            http_version = headers["X-Forwarded-Proto"]
+        if headers.get("X-Real-IP") is not None:
+            client_address = (headers["X-Real-IP"], client_address[1])
+        
+        return cls(HTTPVerions(http_version), HTTPMethods(method), path, headers, cookies, body, client_address, query_params)
+    
+    def __str__(self):
+        return f"""HTTPRequest(
+    http_version={self.http_version},
+    method={self.method},
+    path={self.path},
+    headers={self.headers},
+    cookies={self.cookies},
+    body={self.body},
+    client_address={self.client_address},
+    query_params={self.query_params}
+)"""
+
+
+@dataclass
+class HTTPResponse:
+    body: str = ""
     headers: dict = field(default_factory=dict)
-    status: ResponseCodes = ResponseCodes.OK
+    status: HTTPResponseCodes = HTTPResponseCodes.OK
+
+    # TODO: Add support for Set-Cookie header
 
     def to_string(self):
+        if self.headers.get("Server") is None:
+            self.headers["Server"] = "alec-jensen/webserver"
+
         headers = "\r\n".join([f"{key}: {value}" for key, value in self.headers.items()])
         return f"HTTP/1.1 {self.status.value}\r\n{headers}\r\n\r\n{self.body}"
 
 
-class HTMLResponse(Response):
-    def __init__(self, body: str, headers: dict = {}, status: ResponseCodes = ResponseCodes.OK):
+class HTMLResponse(HTTPResponse):
+    def __init__(self, body: str, headers: dict = {}, status: HTTPResponseCodes = HTTPResponseCodes.OK):
         super().__init__(body, headers, status)
         self.headers["Content-Type"] = "text/html"
 
 class HTTPErrors:
-    BAD_REQUEST = Response("Bad Request", {}, ResponseCodes.BAD_REQUEST)
-    UNAUTHORIZED = Response("Unauthorized", {}, ResponseCodes.UNAUTHORIZED)
-    PAYMENT_REQUIRED = Response("Payment Required", {}, ResponseCodes.PAYMENT_REQUIRED)
-    FORBIDDEN = Response("Forbidden", {}, ResponseCodes.FORBIDDEN)
-    NOT_FOUND = Response("Not Found", {}, ResponseCodes.NOT_FOUND)
-    METHOD_NOT_ALLOWED = Response("Method Not Allowed", {}, ResponseCodes.METHOD_NOT_ALLOWED)
-    NOT_ACCEPTABLE = Response("Not Acceptable", {}, ResponseCodes.NOT_ACCEPTABLE)
-    PROXY_AUTHENTICATION_REQUIRED = Response("Proxy Authentication Required", {}, ResponseCodes.PROXY_AUTHENTICATION_REQUIRED)
-    REQUEST_TIMEOUT = Response("Request Timeout", {}, ResponseCodes.REQUEST_TIMEOUT)
-    CONFLICT = Response("Conflict", {}, ResponseCodes.CONFLICT)
-    GONE = Response("Gone", {}, ResponseCodes.GONE)
-    LENGTH_REQUIRED = Response("Length Required", {}, ResponseCodes.LENGTH_REQUIRED)
-    PRECONDITION_FAILED = Response("Precondition Failed", {}, ResponseCodes.PRECONDITION_FAILED)
-    PAYLOAD_TOO_LARGE = Response("Payload Too Large", {}, ResponseCodes.PAYLOAD_TOO_LARGE)
-    URI_TOO_LONG = Response("URI Too Long", {}, ResponseCodes.URI_TOO_LONG)
-    UNSUPPORTED_MEDIA_TYPE = Response("Unsupported Media Type", {}, ResponseCodes.UNSUPPORTED_MEDIA_TYPE)
-    RANGE_NOT_SATISFIABLE = Response("Range Not Satisfiable", {}, ResponseCodes.RANGE_NOT_SATISFIABLE)
-    EXPECTATION_FAILED = Response("Expectation Failed", {}, ResponseCodes.EXPECTATION_FAILED)
-    IM_A_TEAPOT = Response("I'm a teapot", {}, ResponseCodes.IM_A_TEAPOT)
-    MISDIRECTED_REQUEST = Response("Misdirected Request", {}, ResponseCodes.MISDIRECTED_REQUEST)
-    UNPROCESSABLE_ENTITY = Response("Unprocessable Entity", {}, ResponseCodes.UNPROCESSABLE_ENTITY)
-    LOCKED = Response("Locked", {}, ResponseCodes.LOCKED)
-    FAILED_DEPENDENCY = Response("Failed Dependency", {}, ResponseCodes.FAILED_DEPENDENCY)
-    TOO_EARLY = Response("Too Early", {}, ResponseCodes.TOO_EARLY)
-    UPGRADE_REQUIRED = Response("Upgrade Required", {}, ResponseCodes.UPGRADE_REQUIRED)
-    PRECONDITION_REQUIRED = Response("Precondition Required", {}, ResponseCodes.PRECONDITION_REQUIRED)
-    TOO_MANY_REQUESTS = Response("Too Many Requests", {}, ResponseCodes.TOO_MANY_REQUESTS)
-    REQUEST_HEADER_FIELDS_TOO_LARGE = Response("Request Header Fields Too Large", {}, ResponseCodes.REQUEST_HEADER_FIELDS_TOO_LARGE)
-    UNAVAILABLE_FOR_LEGAL_REASONS = Response("Unavailable For Legal Reasons", {}, ResponseCodes.UNAVAILABLE_FOR_LEGAL_REASONS)
-    INTERNAL_SERVER_ERROR = Response("Internal Server Error", {}, ResponseCodes.INTERNAL_SERVER_ERROR)
-    NOT_IMPLEMENTED = Response("Not Implemented", {}, ResponseCodes.NOT_IMPLEMENTED)
-    BAD_GATEWAY = Response("Bad Gateway", {}, ResponseCodes.BAD_GATEWAY)
-    SERVICE_UNAVAILABLE = Response("Service Unavailable", {}, ResponseCodes.SERVICE_UNAVAILABLE)
-    GATEWAY_TIMEOUT = Response("Gateway Timeout", {}, ResponseCodes.GATEWAY_TIMEOUT)
-    HTTP_VERSION_NOT_SUPPORTED = Response("HTTP Version Not Supported", {}, ResponseCodes.HTTP_VERSION_NOT_SUPPORTED)
-    VARIANT_ALSO_NEGOTIATES = Response("Variant Also Negotiates", {}, ResponseCodes.VARIANT_ALSO_NEGOTIATES)
-    INSUFFICIENT_STORAGE = Response("Insufficient Storage", {}, ResponseCodes.INSUFFICIENT_STORAGE)
-    LOOP_DETECTED = Response("Loop Detected", {}, ResponseCodes.LOOP_DETECTED)
-    NOT_EXTENDED = Response("Not Extended", {}, ResponseCodes.NOT_EXTENDED)
-    NETWORK_AUTHENTICATION_REQUIRED = Response("Network Authentication Required", {}, ResponseCodes.NETWORK_AUTHENTICATION_REQUIRED)
+    BAD_REQUEST = HTTPResponse("Bad Request", {}, HTTPResponseCodes.BAD_REQUEST)
+    UNAUTHORIZED = HTTPResponse("Unauthorized", {}, HTTPResponseCodes.UNAUTHORIZED)
+    PAYMENT_REQUIRED = HTTPResponse("Payment Required", {}, HTTPResponseCodes.PAYMENT_REQUIRED)
+    FORBIDDEN = HTTPResponse("Forbidden", {}, HTTPResponseCodes.FORBIDDEN)
+    NOT_FOUND = HTTPResponse("Not Found", {}, HTTPResponseCodes.NOT_FOUND)
+    METHOD_NOT_ALLOWED = HTTPResponse("Method Not Allowed", {}, HTTPResponseCodes.METHOD_NOT_ALLOWED)
+    NOT_ACCEPTABLE = HTTPResponse("Not Acceptable", {}, HTTPResponseCodes.NOT_ACCEPTABLE)
+    PROXY_AUTHENTICATION_REQUIRED = HTTPResponse("Proxy Authentication Required", {}, HTTPResponseCodes.PROXY_AUTHENTICATION_REQUIRED)
+    REQUEST_TIMEOUT = HTTPResponse("Request Timeout", {}, HTTPResponseCodes.REQUEST_TIMEOUT)
+    CONFLICT = HTTPResponse("Conflict", {}, HTTPResponseCodes.CONFLICT)
+    GONE = HTTPResponse("Gone", {}, HTTPResponseCodes.GONE)
+    LENGTH_REQUIRED = HTTPResponse("Length Required", {}, HTTPResponseCodes.LENGTH_REQUIRED)
+    PRECONDITION_FAILED = HTTPResponse("Precondition Failed", {}, HTTPResponseCodes.PRECONDITION_FAILED)
+    PAYLOAD_TOO_LARGE = HTTPResponse("Payload Too Large", {}, HTTPResponseCodes.PAYLOAD_TOO_LARGE)
+    URI_TOO_LONG = HTTPResponse("URI Too Long", {}, HTTPResponseCodes.URI_TOO_LONG)
+    UNSUPPORTED_MEDIA_TYPE = HTTPResponse("Unsupported Media Type", {}, HTTPResponseCodes.UNSUPPORTED_MEDIA_TYPE)
+    RANGE_NOT_SATISFIABLE = HTTPResponse("Range Not Satisfiable", {}, HTTPResponseCodes.RANGE_NOT_SATISFIABLE)
+    EXPECTATION_FAILED = HTTPResponse("Expectation Failed", {}, HTTPResponseCodes.EXPECTATION_FAILED)
+    IM_A_TEAPOT = HTTPResponse("I'm a teapot", {}, HTTPResponseCodes.IM_A_TEAPOT)
+    MISDIRECTED_REQUEST = HTTPResponse("Misdirected Request", {}, HTTPResponseCodes.MISDIRECTED_REQUEST)
+    UNPROCESSABLE_ENTITY = HTTPResponse("Unprocessable Entity", {}, HTTPResponseCodes.UNPROCESSABLE_ENTITY)
+    LOCKED = HTTPResponse("Locked", {}, HTTPResponseCodes.LOCKED)
+    FAILED_DEPENDENCY = HTTPResponse("Failed Dependency", {}, HTTPResponseCodes.FAILED_DEPENDENCY)
+    TOO_EARLY = HTTPResponse("Too Early", {}, HTTPResponseCodes.TOO_EARLY)
+    UPGRADE_REQUIRED = HTTPResponse("Upgrade Required", {}, HTTPResponseCodes.UPGRADE_REQUIRED)
+    PRECONDITION_REQUIRED = HTTPResponse("Precondition Required", {}, HTTPResponseCodes.PRECONDITION_REQUIRED)
+    TOO_MANY_REQUESTS = HTTPResponse("Too Many Requests", {}, HTTPResponseCodes.TOO_MANY_REQUESTS)
+    REQUEST_HEADER_FIELDS_TOO_LARGE = HTTPResponse("Request Header Fields Too Large", {}, HTTPResponseCodes.REQUEST_HEADER_FIELDS_TOO_LARGE)
+    UNAVAILABLE_FOR_LEGAL_REASONS = HTTPResponse("Unavailable For Legal Reasons", {}, HTTPResponseCodes.UNAVAILABLE_FOR_LEGAL_REASONS)
+    INTERNAL_SERVER_ERROR = HTTPResponse("Internal Server Error", {}, HTTPResponseCodes.INTERNAL_SERVER_ERROR)
+    NOT_IMPLEMENTED = HTTPResponse("Not Implemented", {}, HTTPResponseCodes.NOT_IMPLEMENTED)
+    BAD_GATEWAY = HTTPResponse("Bad Gateway", {}, HTTPResponseCodes.BAD_GATEWAY)
+    SERVICE_UNAVAILABLE = HTTPResponse("Service Unavailable", {}, HTTPResponseCodes.SERVICE_UNAVAILABLE)
+    GATEWAY_TIMEOUT = HTTPResponse("Gateway Timeout", {}, HTTPResponseCodes.GATEWAY_TIMEOUT)
+    HTTP_VERSION_NOT_SUPPORTED = HTTPResponse("HTTP Version Not Supported", {}, HTTPResponseCodes.HTTP_VERSION_NOT_SUPPORTED)
+    VARIANT_ALSO_NEGOTIATES = HTTPResponse("Variant Also Negotiates", {}, HTTPResponseCodes.VARIANT_ALSO_NEGOTIATES)
+    INSUFFICIENT_STORAGE = HTTPResponse("Insufficient Storage", {}, HTTPResponseCodes.INSUFFICIENT_STORAGE)
+    LOOP_DETECTED = HTTPResponse("Loop Detected", {}, HTTPResponseCodes.LOOP_DETECTED)
+    NOT_EXTENDED = HTTPResponse("Not Extended", {}, HTTPResponseCodes.NOT_EXTENDED)
+    NETWORK_AUTHENTICATION_REQUIRED = HTTPResponse("Network Authentication Required", {}, HTTPResponseCodes.NETWORK_AUTHENTICATION_REQUIRED)
