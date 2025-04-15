@@ -1,4 +1,5 @@
-from webserver import Webserver, HTTPRequest
+from webserver import Webserver
+from webserver.enums import HTTPRequest
 from webserver.error_handlers import ExceptionAwareErrorHandler
 
 server = Webserver("0.0.0.0", 8080, error_handler=ExceptionAwareErrorHandler())

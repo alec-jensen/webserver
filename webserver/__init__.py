@@ -1,4 +1,4 @@
-from webserver.webserver import *
-from webserver.enums import *
-from webserver.pyhtml import *
+from webserver.webserver import Webserver
+import webserver.enums
+import webserver.pyhtml
 import webserver.error_handlers
